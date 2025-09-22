@@ -1,0 +1,22 @@
+services:
+  fastapi:
+    build:
+      context: ../..
+      dockerfile: code/deployment/api/Dockerfile
+    image: sms-spam-api:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: ../..
+      dockerfile: code/deployment/app/Dockerfile
+    image: sms-spam-app:latest
+    environment:
+      FASTAPI_URL: http://fastapi:8000/predict
+    ports:
+      - "8501:8501"
+    depends_on:
+      - fastapi
+    restart: unless-stopped
