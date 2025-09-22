@@ -1,10 +1,11 @@
-# SMS Spam Classifier — FastAPI + Streamlit
+# SMS Spam Classifier — FastAPI + Streamlit + Airflow (bonus)
 
 A compact end-to-end demo for deploying a text classifier:
 - **Model**: TF-IDF + Logistic Regression (ham/spam)
 - **API**: FastAPI (`/health`, `/predict`)
-- **UI**: Streamlit (minimal, modern dark theme)
+- **UI**: Streamlit (modern dark theme)
 - **Containers**: separate images for API and UI, orchestrated via Docker Compose
+- **Bonus**: Airflow DAG for automated pipeline (data → model → deploy)
 
 ---
 
@@ -21,9 +22,14 @@ A compact end-to-end demo for deploying a text classifier:
 │     │  ├─ app.py             # FastAPI app
 │     │  └─ Dockerfile         # API image
 │     ├─ app/
-│     │  ├─ streamlit_app.py   # Streamlit UI
+│     │  ├─ streamlit\_app.py   # Streamlit UI
 │     │  └─ Dockerfile         # UI image
-│     └─ docker-compose.yml    # compose file (lives here; build context is repo root)
+│     └─ docker-compose.yml    # compose file (context = repo root)
+├─ services/
+│  └─ airflow/
+│     ├─ dags/pipeline.py      # Airflow DAG (data, model, deploy)
+│     ├─ Dockerfile            # custom Airflow image with sklearn/mlflow/etc.
+│     └─ docker-compose.yml    # Airflow stack
 ├─ data/
 │  └─ raw/
 │     └─ spam.csv              # raw dataset (UCI/Kaggle SMS Spam)
@@ -43,12 +49,12 @@ A compact end-to-end demo for deploying a text classifier:
 
 ---
 
-## Quick start (Docker Compose)
+## Quick start (API + UI via Docker Compose)
 
-> The compose file is located in `code/deployment` and builds with **context = repo root**.
+> The compose file is located in `code/deployment`.
 
 ```bash
-# from the repo root
+# from repo root
 cd code/deployment
 
 # build and start both services (API + UI)
@@ -71,7 +77,7 @@ docker compose down
 ## Train the model (optional if `models/model.pkl` already exists)
 
 ```bash
-# from the repo root
+# from repo root
 python -m pip install -r requirements.txt
 
 # train on data/raw/spam.csv and save model to models/model.pkl
@@ -150,3 +156,34 @@ Ports:
 
 * API: `8000`
 * UI:  `8501`
+
+---
+
+## Bonus: Airflow MLOps pipeline
+
+The project also contains an **Airflow DAG** (`services/airflow/dags/pipeline.py`) automating the flow:
+
+* **data\_stage** → prepares train/test CSVs into `data/processed/`
+* **model\_stage** → trains TF-IDF + LogisticRegression, logs metrics to MLflow, saves `models/model.pkl`
+* **deploy\_stage** → rebuilds & restarts API/UI containers using Docker from inside Airflow
+
+Schedule: every 5 minutes (`*/5 * * * *`) or manual trigger.
+
+### Run Airflow
+
+```bash
+# from repo root
+cd services/airflow
+
+# build custom image with ML deps
+docker compose build --no-cache
+
+# start Airflow (webserver, scheduler, triggerer)
+docker compose up
+```
+
+Open:
+
+* Airflow UI: [http://localhost:8080](http://localhost:8080) (login: `airflow` / `airflow`)
+
+Then unpause the DAG `mlops_pipeline` and trigger it.
